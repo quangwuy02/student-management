@@ -1,40 +1,64 @@
 package org.example.huydq.controller;
 
 import org.example.huydq.entity.Student;
-import org.example.huydq.service.StudentService;
+import org.example.huydq.respone.Respone;
+import org.example.huydq.service.student.StudentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Optional;
 
 @RestController
-@RequestMapping("/api/")
+@RequestMapping("/api")
 public class StudentController {
     @Autowired
     private StudentService studentService;
 
-    @PostMapping("/saveStudent")
-    public ResponseEntity<Student> createStudent(@RequestBody Student student) {
-
-        return new ResponseEntity<Student>(studentService.createStudent(student), HttpStatus.CREATED);
+    @GetMapping("/all-students")
+    public List<Student> getAllStudents() {
+        return studentService.getAllStudents();
     }
 
-    @GetMapping("/getAllStudent")
-    public ResponseEntity<List<Student>> getAllStudent(){
-
-        return new ResponseEntity<List<Student>>(studentService.getAllStudent(), HttpStatus.OK);
+    @GetMapping("/search/{id}")
+    public ResponseEntity<Student> getStudentById(@PathVariable Long id) {
+        Optional<Student> student = studentService.getStudentById(id);
+        return student.map(ResponseEntity::ok).orElseGet(() -> ResponseEntity.notFound().build());
     }
 
-    @PutMapping("/editStudent/{id}")
-    public ResponseEntity<Student> updateStudent(@PathVariable("id") long id, @RequestBody Student student){
-        return new ResponseEntity<Student>(studentService.updateStudent(id, student), HttpStatus.OK);
+    @PostMapping("/new-student")
+    public ResponseEntity<?> createStudent(@RequestBody Student student) {
+        Optional<Student> existingStudentByEmail = studentService.findByEmail(student.getEmail());
+        Optional<Student> existingStudentByStudentNumber = studentService.findByStudentNumber(student.getStudentCode());
+        if (existingStudentByEmail.isPresent() || existingStudentByStudentNumber.isPresent()) {
+            return ResponseEntity.status(HttpStatus.CONFLICT).body("Student already exists.");
+        }
+        Respone message = studentService.saveStudent(student);
+        return ResponseEntity.status(HttpStatus.CREATED).body(message);
     }
 
-    @DeleteMapping("/deleteStudent/{id}")
-    public ResponseEntity<HttpStatus> deleteStudent(@PathVariable("id") long id){
+    @PutMapping("/update-student/{id}")
+    public ResponseEntity<Respone> updateStudent(@PathVariable Long id, @RequestBody Student studentDetails) {
+        Optional<Student> student = studentService.getStudentById(id);
+        if (student.isPresent()) {
+            Student updatedStudent = student.get();
+            updatedStudent.setName(studentDetails.getName());
+            updatedStudent.setStudentCode(studentDetails.getStudentCode());
+            updatedStudent.setDateOfBirth(studentDetails.getDateOfBirth());
+            updatedStudent.setAddress(studentDetails.getAddress());
+            updatedStudent.setPhone(studentDetails.getPhone());
+            updatedStudent.setEmail(studentDetails.getEmail());
+            return ResponseEntity.ok(studentService.saveStudent(updatedStudent));
+        } else {
+            return ResponseEntity.notFound().build();
+        }
+    }
+
+    @DeleteMapping("/delete-student/{id}")
+    public ResponseEntity<Void> deleteStudent(@PathVariable Long id) {
         studentService.deleteStudent(id);
-        return new ResponseEntity<HttpStatus>(HttpStatus.OK);
+        return ResponseEntity.noContent().build();
     }
 }
